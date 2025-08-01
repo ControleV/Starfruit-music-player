@@ -4,18 +4,42 @@ from mutagen.wave import WAVE
 from mutagen.mp3 import MP3
 
 # Coletar a capa das músicas
+from PIL import Image, ImageTk, ImageDraw
 from mutagen.id3 import ID3, APIC
-from PIL import Image, ImageTk
 import io
 
 # Interface gráfica e manipulação de arquivos
+from tkinter import ttk, font, DoubleVar
 from tkinter import filedialog
-from tkinter import ttk, font
 from random import shuffle
 from os.path import join
 from os import listdir
 import tkinter as tk
 import pygame.mixer
+
+
+# Creating stylized widgets
+def create_frutiger_button_image(width:int=40, height:int=40):
+    """ Create a stylized image button to use as background. """
+    img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+
+    # Background gradient
+    for y in range(height):
+        color1 = (50, 19, 22)
+        color2 = (33, 12, 14)
+        r = int(color1[0] + (color2[0] - color1[0]) * y / height)
+        g = int(color1[1] + (color2[1] - color1[1]) * y / height)
+        b = int(color1[2] + (color2[2] - color1[2]) * y / height)
+        draw.rectangle([0, y, width, y+1], fill=(r, g, b))
+    
+    # Round border
+    mask = Image.new("L", (width, height), 0)
+    mask_draw = ImageDraw.Draw(mask)
+    mask_draw.rounded_rectangle([0, 0, width, height], radius=12, fill=255)
+    img.putalpha(mask)
+
+    return img
 
 
 def atualizar_playlist_box(tocando_idx=None):
@@ -57,6 +81,10 @@ def atualizar_capa(right_frame:ttk.Frame, imagem_padrao_tk:ImageTk.PhotoImage, i
     except:
         imagem = False
 
+    # Remover capas antigas (opcional, se criar vários labels)
+    for widget in right_frame.grid_slaves(row=1, column=1):
+        widget.destroy()
+
     if imagem:
         imagem = imagem.resize((120, 120))
         imagem_tk = ImageTk.PhotoImage(imagem)
@@ -69,7 +97,7 @@ def atualizar_capa(right_frame:ttk.Frame, imagem_padrao_tk:ImageTk.PhotoImage, i
         label_capa.grid(row=1, column=1, padx=10)
 
 def main():
-    """Função principal para iniciar o aplicativo."""
+    """ Main function of the app. """
 
     pygame.mixer.init()
 
@@ -88,53 +116,59 @@ def main():
     strong = ("Arial", 12, "bold")
     normal = ("Arial", 10)
 
-    # Definindo layouts para estilização
+
+    # Configuring styles
     style = ttk.Style()
+    style.theme_use('clam')
+
+        # Custom frame style presets
     style.configure("default.TFrame", background="#5A262C")
     style.configure("darker.TFrame", background="#321316")
 
-
-    # Estlização de widgets
+        # Custom widget style presets
     style.configure("texto_default.TLabel", background="#5A262C", foreground="#FFFFFF")
     style.configure("texto_darker.TLabel", background="#321316", foreground="#FFFFFF")
-    style.configure("botao_default.TButton", background="#5A262C")
     style.configure("checkbox_default.TCheckbutton", background="#5A262C", foreground="#FFFFFF")
+    style.map("checkbox_default.TCheckbutton",
+            background=[("active", "#5A262C"), ("selected", "#5A262C")],
+            foreground=[("active", "#FFFFFF"), ("selected", "#FFFFFF")]
+            )
+    style.configure("progressbar_default.Horizontal.TProgressbar",
+        troughcolor="#321316",
+        background="#e58015",
+        bordercolor="#5A262C",
+        lightcolor="#321316",
+        darkcolor="#321316"
+    )
+    style.configure("default_scale.Horizontal.TScale")
 
-
-    # Frame principal
+    # Creating frames
     container_frame = ttk.Frame(root, style="default.TFrame")
     container_frame.pack(fill=tk.BOTH, expand=True)
 
-    # Barra de menu
     menu_bar = tk.Menu(container_frame, background='blue', fg='white')
     file_menu_bar = tk.Menu(menu_bar, tearoff=0)
 
-    # Frame Esquerdo
     left_frame = ttk.Frame(container_frame, style="default.TFrame")
     left_frame.grid(row=1, column=0, padx=10, pady=10, sticky="ns")
 
-    # Frame Direito
     right_frame = ttk.Frame(container_frame, style="default.TFrame")
     right_frame.grid(row=1, column=1, padx=10, pady=10, sticky="n")
 
-    # Frame do rodapé
     footer_frame = ttk.Frame(root, style="darker.TFrame")
     footer_frame.pack(fill=tk.BOTH)
 
-    # Frame para a Lista de Reprodução
     playlist_frame = ttk.Frame(left_frame, style="default.TFrame")
     playlist_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
 
-    # Frame para os detalhes da música
     details_frame = ttk.Frame(right_frame, style="default.TFrame")
     details_frame.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
 
-    # Frame para os botões na mesma linha
     button_frame = ttk.Frame(right_frame, style="default.TFrame")
     button_frame.grid(row=30, column=1, padx=10, pady=10, sticky="ew")
 
-
-
+    tools_frame = ttk.Frame(right_frame, style="default.TFrame")
+    tools_frame.grid(row=31, column=1, padx=5, pady=5, sticky="ew")
 
 
     global nome_musica, nome_artista, nome_album
@@ -148,7 +182,7 @@ def main():
     nome_album.grid(row=3, column=1)
 
 
-    # Estatísticas da música
+    # Music timestamp
     global label_duracao, label_duracao_total
     label_duracao = ttk.Label(right_frame, text="00:00", font=normal, style="texto_default.TLabel")
     label_duracao.grid(row=4, column=0)
@@ -156,13 +190,24 @@ def main():
     label_duracao_total = ttk.Label(right_frame, text="00:00", font=normal, style="texto_default.TLabel")
     label_duracao_total.grid(row=4, column=2)
 
+        # Controlling the music progressbar.
+    progress_var = DoubleVar()
+    progress_bar = ttk.Progressbar(
+        right_frame,
+        variable=progress_var,
+        maximum=100,
+        mode='determinate',
+        style='progressbar_default.Horizontal.TProgressbar'
+    )
+    progress_bar.grid(row=4, column=1, padx=5, pady=5, sticky='ew')
 
-    # Lista de reprodução
+
+        # Lista de reprodução
     label = ttk.Label(left_frame, text="Lista de reprodução", font=strong, style="texto_default.TLabel")
     label.grid(row=0, column=0, padx=10, pady=10)
 
     global playlist_box
-    playlist_box = tk.Text(left_frame, height=15, width=40, background="#321316")
+    playlist_box = tk.Text(left_frame, height=16, width=40, background="#321316")
     playlist_box.grid(row=1, column=0, padx=5, pady=5)
     playlist_box.config(state="disabled")
     
@@ -181,27 +226,110 @@ def main():
     root.config(menu=menu_bar)
 
 
+    # Creating Buttons - first we create the style, after we create the buttons.
+    frutiger_img = create_frutiger_button_image()
+    frutiger_img_tk = ImageTk.PhotoImage(frutiger_img)
+
     global back_button, play_button, next_button
-    # Música anterior
-    back_button = ttk.Button(button_frame, text="|<", command=lambda:tocar_musica("|<"), width=5, style="botao_default.TButton", takefocus=False)
-    back_button.grid(row=0, column=0)
 
-    # Tocar música
-    play_button = ttk.Button(button_frame, text=">", command=lambda:tocar_musica(">"), width=5, style="botao_default.TButton", takefocus=False)
-    play_button.grid(row=0, column=1)
+    back_button = tk.Button(
+        button_frame,
+        image=frutiger_img_tk,
+        text="|<",
+        compound="center",
+        fg="white",
+        bg="#5A262C",
+        command=lambda:tocar_musica("|<"),
+        font=normal,
+        bd=0,
+        highlightthickness=0,
+        activebackground="#5A262C",
+        cursor="hand2",
+        takefocus=False
+        )
+    back_button.grid(row=0, column=0, padx=5)
 
-    # próxima música
-    next_button = ttk.Button(button_frame, text=">|", command=lambda:tocar_musica(">|"), width=5, style="botao_default.TButton", takefocus=False)
-    next_button.grid(row=0, column=3)
+    play_button = tk.Button(
+        button_frame,
+        image=frutiger_img_tk,
+        text=">",
+        compound="center",
+        fg="white",
+        bg="#5A262C",
+        command=lambda:tocar_musica(">"),
+        font=normal,
+        bd=0,
+        highlightthickness=0,
+        activebackground="#5A262C",
+        cursor="hand2",
+        takefocus=False
+        )
+    play_button.grid(row=0, column=1, padx=5)
 
-    # Randomizar playlist
-    random_button = ttk.Button(button_frame, text="><", command=lambda:tocar_musica("><"), width=5, style="botao_default.TButton", takefocus=False)
-    random_button.grid(row=0, column=4)
+    next_button = tk.Button(
+        button_frame,
+        image=frutiger_img_tk,
+        text=">|",
+        compound="center",
+        fg="white",
+        bg="#5A262C",
+        command=lambda:tocar_musica(">|"),
+        font=normal,
+        bd=0,
+        highlightthickness=0,
+        activebackground="#5A262C",
+        cursor="hand2",
+        takefocus=False
+        )
+    next_button.grid(row=0, column=3, padx=5)
 
-    # Tocar próxima música automaticamente
+    random_button = tk.Button(
+        button_frame,
+        image=frutiger_img_tk,
+        text="><",
+        compound="center",
+        fg="white",
+        bg="#5A262C",
+        command=lambda:tocar_musica("><"),
+        font=normal,
+        bd=0,
+        highlightthickness=0,
+        activebackground="#5A262C",
+        cursor="hand2",
+        takefocus=False
+        )
+    random_button.grid(row=0, column=4, padx=5)
+
+
+    # Configuring autoplay feature.
     autoplay_var = tk.BooleanVar()
-    autoplay_checkbox = ttk.Checkbutton(button_frame, text="Autoplay", variable=autoplay_var, style="checkbox_default.TCheckbutton", takefocus=False)
-    autoplay_checkbox.grid(row=1, column=0, columnspan=4, pady=5)
+    autoplay_checkbox = ttk.Checkbutton(
+        tools_frame,
+        text="Autoplay",
+        variable=autoplay_var,
+        style="checkbox_default.TCheckbutton",
+        cursor="hand2",
+        takefocus=False)
+    autoplay_checkbox.grid(row=0, column=0)
+
+
+    # Volume Slider.
+    volume_var = tk.DoubleVar(value=0.5)
+    def set_volume(val):
+        pygame.mixer.music.set_volume(float(val))
+    volume_slider = ttk.Scale(
+        tools_frame,
+        from_=0,
+        to=1,
+        orient="horizontal",
+        variable=volume_var,
+        command=set_volume,
+        length=120,
+        style="default_scale.Horizontal.TScale"
+    )
+    volume_slider.grid(row=0, column=2, columnspan=2, padx=5)
+    volume_label = ttk.Label(tools_frame, text="Volume:", style="texto_default.TLabel")
+    volume_label.grid(row=0, column=1, columnspan=1, padx=5)
 
 
     # Logs
@@ -240,10 +368,15 @@ def main():
                 pygame.mixer.music.play()
                 play_button.config(text="||")
                 atualizar_playlist_box(tocando_idx=indice_atual)
+                nome_musica.config(text = f"{playlist[indice_atual]['nome']}")
+                nome_artista.config(text = f"Artista: {playlist[indice_atual]['artista']}")
+                nome_album.config(text = f"Album: {playlist[indice_atual]['album']}")
+                atualizar_capa(right_frame, imagem_padrao_tk, indice_atual)
                 return
 
         if playlist:
             if indice_atual < 0: indice_atual = 0
+
             elif indice_atual >= len(playlist):indice_atual = 0
 
             pygame.mixer.music.load(playlist[indice_atual]['caminho'])
@@ -255,7 +388,6 @@ def main():
             nome_album.config(text = f"Album: {playlist[indice_atual]['album']}")
 
             atualizar_playlist_box(tocando_idx=indice_atual)
-
             atualizar_capa(right_frame, imagem_padrao_tk, indice_atual)
 
             return True
@@ -304,24 +436,24 @@ def main():
                     playlist_box.insert(tk.END, f"{idx} - {item[:-4]}\n", tag)
                     
             playlist_box.config(state="disabled")
-    def checar_fim_musica():
-        """Verifica se a música acabou, e se sim, toca a próxima automaticamente, caso a opção de autoplay esteja marcada."""
 
-        if (
-        autoplay_var.get()
-        and playlist
-        and not is_paused
-        and not pygame.mixer.music.get_busy()):
-            
-            if pygame.mixer.music.get_pos() >= 0:
-                tocar_musica(">|")
-            else:
+            if playlist:
                 tocar_musica(">")
 
+    def checar_fim_musica():
+        """ Verifica se a música acabou, e se sim, toca a próxima automaticamente, caso a opção de autoplay esteja marcada. """
 
+        if (
+            autoplay_var.get()
+            and playlist
+            and not is_paused
+            and not pygame.mixer.music.get_busy()
+        ):
+            tocar_musica(">|")
+                
         root.after(500, checar_fim_musica)
     def music_stats():
-        """Coleta o estado atual da música"""
+        """ Coleta o estado atual da música. """
 
         if playlist and 0 <= indice_atual < len(playlist):
             caminho = playlist[indice_atual]['caminho']
@@ -329,18 +461,27 @@ def main():
             pos_ms = pygame.mixer.music.get_pos()
             pos_seg = max(0, pos_ms // 1000)
 
-            if caminho.endswith('.mp3'):
+            if caminho.lower().endswith('.mp3'):
                 audio = MP3(caminho)
                 duracao_total = int(audio.info.length)
 
-            elif caminho.endswith('.wav'):
+            elif caminho.lower().endswith('.wav'):
                 audio = WAVE(caminho)
                 duracao_total = int(audio.info.length)
+
             else:
                 duracao_total = 0
 
             label_duracao.config(text=formatar_tempo(pos_seg))
             label_duracao_total.config(text=formatar_tempo(duracao_total))
+
+            # Refresh progressbar
+            if duracao_total > 0:
+                progress = (pos_seg / duracao_total) * 100
+                progress_var.set(progress)
+
+            else:
+                progress_var.set(0)
 
         root.after(500, music_stats)
 
