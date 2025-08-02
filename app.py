@@ -16,6 +16,7 @@ from os.path import join
 from os import listdir
 import tkinter as tk
 import pygame.mixer
+from tools import *
 
 
 # Creating stylized widgets
@@ -146,9 +147,6 @@ def main():
     container_frame = ttk.Frame(root, style="default.TFrame")
     container_frame.pack(fill=tk.BOTH, expand=True)
 
-    menu_bar = tk.Menu(container_frame, background='blue', fg='white')
-    file_menu_bar = tk.Menu(menu_bar, tearoff=0)
-
     left_frame = ttk.Frame(container_frame, style="default.TFrame")
     left_frame.grid(row=1, column=0, padx=10, pady=10, sticky="ns")
 
@@ -217,14 +215,6 @@ def main():
     # Configuração de tags para cores
     playlist_box.tag_configure("bg_red", background="#f09696")
     playlist_box.tag_configure("bg_darkred", background="#e27e7e")
-
-    # Criando menu de arquivo
-    file_menu_bar.add_command(label="Carregar pasta", command=lambda:carregar_pasta())
-    file_menu_bar.add_separator()
-    file_menu_bar.add_command(label="Sair", command=root.quit)
-    menu_bar.add_cascade(label="Arquivo", menu=file_menu_bar)
-    root.config(menu=menu_bar)
-
 
     # Creating Buttons - first we create the style, after we create the buttons.
     frutiger_img = create_frutiger_button_image()
@@ -341,6 +331,24 @@ def main():
     imagem_padrao_tk = ImageTk.PhotoImage(imagem_padrao)
     atualizar_capa(right_frame, imagem_padrao_tk, indice_atual=0)
 
+    def create_menus():
+        """ This function creates all the app menus. """
+
+        menu_bar = tk.Menu(container_frame, background='blue', fg='white')
+
+        file_menu_bar = tk.Menu(menu_bar, tearoff=0)
+        file_menu_bar.add_command(label="Load folder", command=lambda:load_folder())
+        file_menu_bar.add_separator()
+        file_menu_bar.add_command(label="Quit", command=root.quit)
+        menu_bar.add_cascade(label="File", menu=file_menu_bar)
+
+        download_menu_bar = tk.Menu(menu_bar, tearoff=0)
+        download_menu_bar.add_command(label="Download files", command=None)
+        menu_bar.add_cascade(label="Download", menu=download_menu_bar)
+
+        root.config(menu=menu_bar)
+    create_menus()
+
     def tocar_musica(option:str):
         """Toca a música no índice especificado da playlist."""
 
@@ -394,7 +402,7 @@ def main():
         
         return False
     
-    def carregar_pasta():
+    def load_folder():
         """Carrega uma pasta e adiciona arquivos de música à lista de reprodução."""
 
         nonlocal indice_atual
