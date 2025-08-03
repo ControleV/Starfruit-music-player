@@ -16,7 +16,6 @@ class AudioProcessor:
     def set_eq_gains(self, low, mid, high):
         """Define os ganhos do equalizador"""
         self.eq_gains = [low, mid, high]
-        # Limpa o cache quando as configurações mudam
         self.clear_cache()
         
     def clear_cache(self):

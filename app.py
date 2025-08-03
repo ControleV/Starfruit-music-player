@@ -121,7 +121,7 @@ def main():
     # Inicializa o processador de áudio e equalizador
     audio_processor = AudioProcessor()
     eq = Eq()
-    eq.audio_processor = audio_processor  # Compartilha o mesmo processador
+    eq.audio_processor = audio_processor  # Share the same processor
     
     # Callback para quando o equalizador muda
     def on_eq_change(gains):
@@ -342,7 +342,7 @@ def main():
     volume_slider.grid(row=0, column=2, columnspan=2, padx=5)
     volume_label = ttk.Label(tools_frame, text="Volume:", style="texto_default.TLabel")
     volume_label.grid(row=0, column=1, columnspan=1, padx=5)
-
+    set_volume(0.5)
 
     # Logs
     label_logs = ttk.Label(footer_frame, text="Bem-vindo ao Starfruit Music Player! :3", style="texto_darker.TLabel")

@@ -13,7 +13,7 @@ class Eq:
         self.eq_gains = [1.0, 1.0, 1.0]  # Grave, Médio, Agudo
         self.audio_processor = AudioProcessor()
         self.callback = None  # Callback para notificar mudanças no app principal
-        self.enabled = True  # Se o equalizador está ativo
+        self.enabled = False
         
     def set_callback(self, callback_func):
         """Define função callback para comunicar com o player principal"""
@@ -52,7 +52,7 @@ class Eq:
     def open_window(self):
         window = tk.Toplevel()
         window.title("Equalizer")
-        window.geometry("400x300")
+        window.resizable(False, False)
         window.configure(bg="#5A262C")
 
         # Frame principal
@@ -104,7 +104,7 @@ class Eq:
         reset_btn.pack(side="left", padx=5)
 
         # Botão para ativar/desativar equalizador
-        self.toggle_btn = tk.Button(button_frame, text="Desativar EQ", 
+        self.toggle_btn = tk.Button(button_frame, text="Ativar EQ", 
                                    command=lambda: self.toggle_eq(slider1, slider2, slider3),
                                    bg="#5A1A1D", fg="white", font=("Arial", 10),
                                    padx=20, pady=5, cursor="hand2")
