@@ -23,6 +23,10 @@ import webbrowser
 from tools.equalizer.equalizer import Eq
 from tools.audio_processor import AudioProcessor
 
+# System tray
+import pystray
+from threading import Thread
+
 
 # Creating stylized widgets
 def create_frutiger_button_image(width:int=40, height:int=40):
@@ -102,6 +106,75 @@ def atualizar_capa(right_frame:ttk.Frame, imagem_padrao_tk:ImageTk.PhotoImage, i
         label_capa.image = imagem_padrao_tk
         label_capa.grid(row=1, column=1, padx=10)
 
+class SystemTrayHandler:
+    """Classe para gerenciar a bandeja do sistema"""
+    
+    def __init__(self, root_window):
+        self.root = root_window
+        self.icon = None
+        self.is_hidden = False
+        
+        self.tray_image = Image.open("images/default_cover.png").resize((64, 64))
+
+    
+    def create_tray_icon(self):
+        """Cria o ícone na bandeja do sistema"""
+        menu = pystray.Menu(
+            pystray.MenuItem("Show/Hide", self.toggle_window),
+            pystray.MenuItem("Play/Pause", self.toggle_playback),
+            pystray.MenuItem("Next", self.next_track),
+            pystray.MenuItem("Previous", self.previous_track),
+            pystray.MenuItem("Quit", self.quit_app)
+        )
+        
+        self.icon = pystray.Icon("Starfruit Music Player", self.tray_image, menu=menu)
+        return self.icon
+    
+    def toggle_window(self, icon=None, item=None):
+        """Mostra/oculta a janela principal"""
+        if self.is_hidden:
+            self.root.deiconify()  # Mostrar janela
+            self.root.lift()       # Trazer para frente
+            self.is_hidden = False
+        else:
+            self.root.withdraw()   # Ocultar janela
+            self.is_hidden = True
+    
+    def toggle_playback(self, icon=None, item=None):
+        """Controla play/pause da música"""
+        try:
+            # Usar a função existente do player para controle consistente
+            if hasattr(self.root, '_tocar_musica_func'):
+                self.root._tocar_musica_func(">")
+        except:
+            pass
+    
+    def next_track(self, icon=None, item=None):
+        """Próxima música"""
+        # Esta função será conectada com a função do player posteriormente
+        pass
+    
+    def previous_track(self, icon=None, item=None):
+        """Música anterior"""
+        # Esta função será conectada com a função do player posteriormente
+        pass
+    
+    def quit_app(self, icon=None, item=None):
+        """Sair do aplicativo"""
+        if self.icon:
+            self.icon.stop()
+        self.root.quit()
+    
+    def run_tray(self):
+        """Executa o ícone da bandeja em thread separada"""
+        if self.icon:
+            self.icon.run()
+    
+    def stop_tray(self):
+        """Para o ícone da bandeja"""
+        if self.icon:
+            self.icon.stop()
+
 def main():
     """ Main function of the app. """
 
@@ -117,6 +190,10 @@ def main():
     playlist = []
     indice_atual = 0
     is_paused = False
+    
+    # Inicializar handler da bandeja do sistema
+    global tray_handler
+    tray_handler = SystemTrayHandler(root)
     
     # Inicializa o processador de áudio e equalizador
     audio_processor = AudioProcessor()
@@ -362,6 +439,8 @@ def main():
         file_menu_bar = tk.Menu(menu_bar, tearoff=0)
         file_menu_bar.add_command(label="Load folder", command=lambda:load_folder())
         file_menu_bar.add_separator()
+        file_menu_bar.add_command(label="Minimize to tray", command=tray_handler.toggle_window)
+        file_menu_bar.add_separator()
         file_menu_bar.add_command(label="Quit", command=root.quit)
         menu_bar.add_cascade(label="File", menu=file_menu_bar)
 
@@ -468,6 +547,13 @@ def main():
         
         return False
     
+    # Conectar funções da bandeja com controles do player
+    tray_handler.next_track = lambda icon=None, item=None: tocar_musica(">|")
+    tray_handler.previous_track = lambda icon=None, item=None: tocar_musica("|<")
+    
+    # Conectar função de play/pause
+    root._tocar_musica_func = tocar_musica
+    
     def load_folder():
         """Carrega uma pasta e adiciona arquivos de música à lista de reprodução."""
 
@@ -561,7 +647,24 @@ def main():
 
     checar_fim_musica()
     music_stats()
+    
+    # Configurar comportamento de fechar janela (minimizar para bandeja)
+    def on_closing():
+        """Quando o usuário tentar fechar a janela, minimiza para bandeja"""
+        tray_handler.toggle_window()
+        return "break"
+    
+    root.protocol("WM_DELETE_WINDOW", on_closing)
+    
+    # Inicializar ícone da bandeja em thread separada
+    tray_icon = tray_handler.create_tray_icon()
+    tray_thread = Thread(target=tray_handler.run_tray, daemon=True)
+    tray_thread.start()
+    
     root.mainloop()
+    
+    # Limpar ícone da bandeja ao sair
+    tray_handler.stop_tray()
 
 if __name__ == "__main__":
     main()
