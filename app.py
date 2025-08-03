@@ -1,22 +1,27 @@
-# Leitura de metadados
+# Metadata reader
 from mutagen.easyid3 import EasyID3
 from mutagen.wave import WAVE
 from mutagen.mp3 import MP3
 
-# Coletar a capa das músicas
+# Get music capes
 from PIL import Image, ImageTk, ImageDraw
 from mutagen.id3 import ID3, APIC
 import io
 
-# Interface gráfica e manipulação de arquivos
-from tkinter import ttk, font, DoubleVar
+# Grafic interface and file manipulation
+from tkinter import ttk, DoubleVar, messagebox
 from tkinter import filedialog
 from random import shuffle
 from os.path import join
 from os import listdir
+import os
 import tkinter as tk
 import pygame.mixer
-from tools import *
+import webbrowser
+
+# Audio processing
+from tools.equalizer.equalizer import Eq
+from tools.audio_processor import AudioProcessor
 
 
 # Creating stylized widgets
@@ -112,6 +117,23 @@ def main():
     playlist = []
     indice_atual = 0
     is_paused = False
+    
+    # Inicializa o processador de áudio e equalizador
+    audio_processor = AudioProcessor()
+    eq = Eq()
+    eq.audio_processor = audio_processor  # Compartilha o mesmo processador
+    
+    # Callback para quando o equalizador muda
+    def on_eq_change(gains):
+        """Callback chamado quando as configurações do equalizador mudam"""
+        print(f"Equalizador atualizado: Graves={gains[0]:.1f}, Médios={gains[1]:.1f}, Agudos={gains[2]:.1f}")
+        # Reprocessa a música atual se estiver tocando
+        if playlist and 0 <= indice_atual < len(playlist):
+            # Para a música atual e recarrega com nova equalização
+            pygame.mixer.music.stop()
+            tocar_musica_com_eq()
+    
+    eq.set_callback(on_eq_change)
 
     # Fontes
     strong = ("Arial", 12, "bold")
@@ -331,8 +353,9 @@ def main():
     imagem_padrao_tk = ImageTk.PhotoImage(imagem_padrao)
     atualizar_capa(right_frame, imagem_padrao_tk, indice_atual=0)
 
+    # Function to create and configure the menus.
     def create_menus():
-        """ This function creates all the app menus. """
+        """ This function creates and configures all the app menus. """
 
         menu_bar = tk.Menu(container_frame, background='blue', fg='white')
 
@@ -342,12 +365,58 @@ def main():
         file_menu_bar.add_command(label="Quit", command=root.quit)
         menu_bar.add_cascade(label="File", menu=file_menu_bar)
 
-        download_menu_bar = tk.Menu(menu_bar, tearoff=0)
-        download_menu_bar.add_command(label="Download files", command=None)
-        menu_bar.add_cascade(label="Download", menu=download_menu_bar)
+        tools_menu_bar = tk.Menu(menu_bar, tearoff=0)
+        tools_menu_bar.add_command(label="Equalizer", command=lambda:eq.open_window())
+        menu_bar.add_cascade(label="Tools", menu=tools_menu_bar)
+
+        about_menu_bar = tk.Menu(menu_bar, tearoff=0)
+        about_menu_bar.add_command(label="Github", command=lambda:webbrowser.open('https://github.com/ControleV/Starfruit-music-player'))
+        menu_bar.add_cascade(label="About", menu=about_menu_bar)
 
         root.config(menu=menu_bar)
     create_menus()
+
+    def tocar_musica_com_eq():
+        """Toca a música atual aplicando equalização"""
+        if playlist and 0 <= indice_atual < len(playlist):
+            caminho_original = playlist[indice_atual]['caminho']
+            
+            try:
+                # Verifica se o equalizador está ativo e processa o arquivo
+                if eq.enabled:
+                    caminho_processado = eq.process_current_track(caminho_original)
+                else:
+                    caminho_processado = caminho_original
+                
+                # Verifica se o processamento foi bem-sucedido
+                if caminho_processado != caminho_original and os.path.exists(caminho_processado):
+                    # Usa arquivo processado
+                    pygame.mixer.music.load(caminho_processado)
+                    print(f"Tocando com equalização: {os.path.basename(caminho_original)}")
+                else:
+                    # Usa arquivo original
+                    pygame.mixer.music.load(caminho_original)
+                    if eq.enabled:
+                        print(f"Tocando sem equalização (arquivo não processado): {os.path.basename(caminho_original)}")
+                    else:
+                        print(f"Tocando arquivo original (EQ desabilitado): {os.path.basename(caminho_original)}")
+                
+                pygame.mixer.music.play()
+                play_button.config(text="||")
+                is_paused = False
+                
+            except Exception as e:
+                print(f"Erro ao tocar música: {e}")
+                # Fallback final - tenta tocar arquivo original
+                try:
+                    pygame.mixer.music.load(caminho_original)
+                    pygame.mixer.music.play()
+                    play_button.config(text="||")
+                    is_paused = False
+                    print(f"Tocando arquivo original como fallback: {os.path.basename(caminho_original)}")
+                except Exception as e2:
+                    print(f"Erro crítico ao tocar música: {e2}")
+                    play_button.config(text=">")
 
     def tocar_musica(option:str):
         """Toca a música no índice especificado da playlist."""
@@ -372,9 +441,7 @@ def main():
             if playlist:
                 shuffle(playlist)
                 indice_atual = 0
-                pygame.mixer.music.load(playlist[indice_atual]['caminho'])
-                pygame.mixer.music.play()
-                play_button.config(text="||")
+                tocar_musica_com_eq()
                 atualizar_playlist_box(tocando_idx=indice_atual)
                 nome_musica.config(text = f"{playlist[indice_atual]['nome']}")
                 nome_artista.config(text = f"Artista: {playlist[indice_atual]['artista']}")
@@ -387,9 +454,8 @@ def main():
 
             elif indice_atual >= len(playlist):indice_atual = 0
 
-            pygame.mixer.music.load(playlist[indice_atual]['caminho'])
-            pygame.mixer.music.play()
-            play_button.config(text="||")
+            # Usa equalização ao tocar música
+            tocar_musica_com_eq()
 
             nome_musica.config(text = f"{playlist[indice_atual]['nome']}")
             nome_artista.config(text = f"Artista: {playlist[indice_atual]['artista']}")
