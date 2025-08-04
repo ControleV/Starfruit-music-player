@@ -1,0 +1,20 @@
+# Starfruit Music Player - Dependencies
+
+# Audio processing and metadata
+mutagen>=1.47.0
+pygame>=2.5.0
+pydub>=0.25.1
+
+# Scientific computing for audio processing
+numpy>=1.24.0
+scipy>=1.10.0
+
+# Image processing for album covers and UI
+Pillow>=10.0.0
+
+# System tray functionality
+pystray>=0.19.4
+
+# Additional dependencies that may be needed by pydub for audio format support
+# Uncomment if you encounter issues with specific audio formats:
+# ffmpeg-python>=0.2.0
