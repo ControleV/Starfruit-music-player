@@ -126,7 +126,7 @@ def create_frutiger_button_image(width:int=40, height:int=40):
 
     return img
 
-def update_playlist_box(tocando_idx=None):
+def update_playlist_box(playing_idx=None):
     """Updates the playlist widget with emoji on the playing music"""
     
     playlist_box.config(state="normal")
@@ -134,8 +134,8 @@ def update_playlist_box(tocando_idx=None):
     
     for idx, item in enumerate(playlist):
         tag = "bg_red" if idx % 2 == 0 else "bg_darkred"
-        prefixo = "▶️ " if tocando_idx is not None and idx == tocando_idx else ""
-        playlist_box.insert(tk.END, f"{prefixo}{idx} - {item['nome']}\n", tag)
+        prefix = "▶️ " if playing_idx is not None and idx == playing_idx else ""
+        playlist_box.insert(tk.END, f"{prefix}{idx} - {item['nome']}\n", tag)
     
     playlist_box.config(state="disabled")
 
@@ -145,14 +145,14 @@ def time_formatting(seconds:int):
 
     return f"{minutes:02d}:{seconds:02d}"
 
-def get_cover(caminho_mp3:str):
+def get_cover(mp3_path:str):
     """Returns a PIL.Image object of the MP3 cover, or None if none exists"""
     try:
-        audio = MP3(caminho_mp3, ID3=ID3)
+        audio = MP3(mp3_path, ID3=ID3)
         for tag in audio.tags.values():
             if isinstance(tag, APIC):
-                imagem = Image.open(io.BytesIO(tag.data))
-                return imagem
+                image = Image.open(io.BytesIO(tag.data))
+                return image
     except Exception:
         return None
     
@@ -582,30 +582,36 @@ def main():
         nonlocal current_index
         nonlocal is_paused
 
-        pygame.mixer.music.unload()
-        audio_processor.clear_cache()
-        if option == "|<": current_index -= 1
-        elif option == ">|": current_index += 1
-        elif option == ">":
-            if pygame.mixer.music.get_busy():
+        # Handle play/pause first (without unloading music)
+        if option == ">":
+            if pygame.mixer.music.get_busy() and not is_paused:
+                # Music is playing, so pause it
                 pygame.mixer.music.pause()
                 play_button.config(text=">")
                 is_paused = True
                 return
-            elif pygame.mixer.music.get_pos() != -1:
+            elif is_paused:
+                # Music is paused, so unpause it
                 pygame.mixer.music.unpause()
                 play_button.config(text="||")
                 is_paused = False
                 return
+
+        # For other operations (change tracks), unload and clear cache
+        pygame.mixer.music.unload()
+        audio_processor.clear_cache()
+        
+        if option == "|<": current_index -= 1
+        elif option == ">|": current_index += 1
         elif option == "><":
             if playlist:
                 shuffle(playlist)
-                indice_atual = 0
+                current_index = 0
                 play_music_w_eq()
-                update_playlist_box(tocando_idx=indice_atual)
-                scrolling_music.set_text(playlist[indice_atual]['nome'])
-                scrolling_artist.set_text(f"Artist: {playlist[indice_atual]['artista']}")
-                scrolling_album.set_text(f"Album: {playlist[indice_atual]['album']}")
+                update_playlist_box(playing_idx=current_index)
+                scrolling_music.set_text(playlist[current_index]['nome'])
+                scrolling_artist.set_text(f"Artist: {playlist[current_index]['artista']}")
+                scrolling_album.set_text(f"Album: {playlist[current_index]['album']}")
                 update_cover(frames["right"], default_image_tk, current_index)
                 return
 
@@ -619,7 +625,7 @@ def main():
             scrolling_artist.set_text(f"Artist: {playlist[current_index]['artista']}")
             scrolling_album.set_text(f"Album: {playlist[current_index]['album']}")
 
-            update_playlist_box(tocando_idx=current_index)
+            update_playlist_box(playing_idx=current_index)
             update_cover(frames["right"], default_image_tk, current_index)
 
             return True
